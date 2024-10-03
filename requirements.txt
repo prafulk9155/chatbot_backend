@@ -1,0 +1,9 @@
+# backend/requirements.txt
+fastapi
+uvicorn
+transformers
+requests
+tf-keras
+requests
+beautifulsoup4
+
