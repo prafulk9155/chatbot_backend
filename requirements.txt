@@ -6,4 +6,7 @@ requests
 tf-keras
 requests
 beautifulsoup4
-
+selenium
+webdriver-manager
+selenium-stealth
+pyppeteer
