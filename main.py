@@ -1,13 +1,26 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForQuestionAnswering
 
 app = FastAPI()
 
-# Initialize the question-answering pipeline with a model
-qa_pipeline = pipeline("question-answering")
+# CORS middleware setup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins; modify for production
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods; modify as needed
+    allow_headers=["*"],  # Allows all headers; modify as needed
+)
+
+# Initialize the question-answering pipeline with a specific model
+model_name = "deepset/roberta-base-squad2"  # Using a more capable QA model
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForQuestionAnswering.from_pretrained(model_name)
+qa_pipeline = pipeline("question-answering", model=model, tokenizer=tokenizer)
 
 class URLRequest(BaseModel):
     url: str
@@ -28,33 +41,50 @@ async def scrape_website(request: URLRequest):
         # Check if the request was successful
         if response.status_code == 200:
             soup = BeautifulSoup(response.content, 'html.parser')
-            scraped_text = " ".join([tag.get_text(strip=True) for tag in soup.find_all(['h1', 'h2', 'h3', 'p'])])
+            scraped_text = " ".join([tag.get_text(strip=True) for tag in soup.find_all(['h1', 'h2', 'h3', 'p', 'ul', 'li'])])
 
             # Store the scraped text in memory
             scraped_data_storage[request.url] = scraped_text
 
             # Return the scraped text
-            return {"scraped_text": scraped_text}
+            return {"error": False, "scraped_text": scraped_text}
         else:
             raise HTTPException(status_code=response.status_code, detail="Failed to retrieve data from the provided URL.")
 
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Initialize the text generation model
+llm_pipeline = pipeline("text-generation", model="gpt2")  # or "EleutherAI/gpt-neo-125M"
+
+def get_llm_answer(scraped_text, question):
+    prompt = f"Here is some information about a website:\n\n{scraped_text}\n\nGiven this information, answer the following question:\n{question}\n\nAnswer:"
+    
+    # Limit the length of the prompt to avoid index errors
+    if len(prompt) > 1024:
+        prompt = prompt[:1024]
+        print(prompt)  # Truncate the prompt to the first 1024 characters
+
+    # Use the local model for generation with adjusted parameters
+    response = llm_pipeline(prompt, max_new_tokens=50, num_return_sequences=1)  # Adjust max_new_tokens as needed
+
+    return response[0]['generated_text'].strip()
+
 @app.post("/query/")
 async def query_scraped_data(request: QueryRequest):
-    # Check if there's scraped data available
     if not scraped_data_storage:
         raise HTTPException(status_code=404, detail="No scraped data available.")
 
-    # Get the last scraped URL
     last_url = list(scraped_data_storage.keys())[-1]
     scraped_text = scraped_data_storage[last_url]
 
-    # Use the question-answering model to get an answer
-    answer = qa_pipeline(question=request.question, context=scraped_text)
+    answer = get_llm_answer(scraped_text, request.question)
 
-    return {"answer": answer['answer']}
+    return {
+        "error": False,
+        "answer": answer,
+        "context": scraped_text[:100]  # Optionally, return a snippet of the context
+    }
 
 # To run the application, use:
 # uvicorn app:app --reload
