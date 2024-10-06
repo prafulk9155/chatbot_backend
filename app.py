@@ -8,18 +8,14 @@ app = FastAPI()
 class URLRequest(BaseModel):
     url: str
 
-async def login_to_linkedin(page):
-    # Go to LinkedIn login page
-    await page.goto('https://www.linkedin.com/login')
-    await page.waitForSelector('#username')
-
-    # Fill in the login credentials
-    await page.type('#username', 'your_linkedin_email')  # Replace with your LinkedIn email
-    await page.type('#password', 'your_linkedin_password')  # Replace with your LinkedIn password
-
-    # Submit the form and wait for navigation
-    await page.click('button[type="submit"]')
-    await page.waitForNavigation()
+async def dismiss_popup(page):
+    # Check if a popup appears and close it if it does
+    try:
+        await page.waitForSelector('.artdeco-modal__actionbar .artdeco-modal__dismiss', timeout=5000)
+        await page.click('.artdeco-modal__actionbar .artdeco-modal__dismiss')
+    except:
+        # If no popup appears, continue
+        pass
 
 async def scrape_linkedin_profile(linkedin_url: str):
     try:
@@ -30,24 +26,24 @@ async def scrape_linkedin_profile(linkedin_url: str):
         # Set User-Agent to mimic real browser interaction
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
-        # Perform login
-        await login_to_linkedin(page)
-
-        # Go to the LinkedIn profile URL after logging in
+        # Go to the LinkedIn profile URL
         await page.goto(linkedin_url)
-        await page.waitForSelector('h1')  # Wait for the name to appear
+        await page.waitForSelector('body')  # Ensure the page loads
 
-        # Scrape name and headline
-        name = await page.evaluate('document.querySelector("h1").innerText')
-        headline = await page.evaluate('document.querySelector(".text-body-medium").innerText')
+        # Dismiss any popups if they appear
+        await dismiss_popup(page)
+
+        # Scrape all the visible text content from the page
+        page_content = await page.evaluate('''() => {
+            return document.body.innerText;
+        }''')
 
         # Close the browser
         await browser.close()
 
-        # Return the scraped profile data
+        # Return the scraped page content for analysis
         return {
-            "name": name,
-            "headline": headline
+            "page_content": page_content
         }
 
     except Exception as e:
