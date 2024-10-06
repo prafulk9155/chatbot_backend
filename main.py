@@ -8,18 +8,30 @@ app = FastAPI()
 class URLRequest(BaseModel):
     url: str
 
-async def login_to_linkedin(page):
-    # Go to LinkedIn login page
-    await page.goto('https://www.linkedin.com/login')
-    await page.waitForSelector('#username')
-
-    # Fill in the login credentials
-    await page.type('#username', 'cfajiewvlsfaffyevz@tmmwj.net')  # Replace with your LinkedIn email
-    await page.type('#password', 'a@A12345678')  # Replace with your LinkedIn password
-
-    # Submit the form and wait for navigation
-    await page.click('button[type="submit"]')
-    await page.waitForNavigation()
+async def set_linkedin_cookies(page):
+    # Add your cookies (from the browser's dev tools) here
+    cookies = [
+        {
+            "name": "li_at",
+            "value": "AQEDAVOUOWsAv-XsAAABkmKb00kAAAGShqhXSVYABhInaI58G-FyjXIELWsRy1r1S2OV1Jz_LT8q9H5lykD16MXXOwv7s1PkB57pYRDE9kHTOlmhEZDpcdgXFZMH0giuwlupg0dft8OSKFRhHKIwaqMh",  # Replace with your cookie value
+            "domain": ".linkedin.com",
+            "path": "/",
+            "httpOnly": True,
+            "secure": True
+        },
+        {
+            "name": "JSESSIONID",
+            "value": "ajax:1597530069556966703",  # Replace with your cookie value
+            "domain": ".linkedin.com",
+            "path": "/",
+            "httpOnly": True,
+            "secure": True
+        },
+        # Add other relevant cookies here if necessary
+    ]
+    
+    # Set cookies in the browser
+    await page.setCookie(*cookies)
 
 async def scrape_linkedin_profile(linkedin_url: str):
     try:
@@ -30,24 +42,24 @@ async def scrape_linkedin_profile(linkedin_url: str):
         # Set User-Agent to mimic real browser interaction
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
-        # Perform login
-        await login_to_linkedin(page)
+        # Set the cookies for LinkedIn from your logged-in session
+        await set_linkedin_cookies(page)
 
-        # Go to the LinkedIn profile URL after logging in
+        # Go directly to the LinkedIn profile URL
         await page.goto(linkedin_url)
-        await page.waitForSelector('h1')  # Wait for the name to appear
+        await page.waitForSelector('h1', 'p','span')  # Wait for the page to load
 
-        # Scrape name and headline
-        name = await page.evaluate('document.querySelector("h1").innerText')
-        headline = await page.evaluate('document.querySelector(".text-body-medium").innerText')
+        # Scrape all the visible text content from the page
+        page_content = await page.evaluate('''() => {
+            return document.body.innerText;
+        }''')
 
         # Close the browser
         await browser.close()
 
-        # Return the scraped profile data
+        # Return the scraped page content for analysis
         return {
-            "name": name,
-            "headline": headline
+            "page_content": page_content
         }
 
     except Exception as e:
