@@ -5,11 +5,11 @@ from langchain_pinecone import PineconeVectorStore
 from utils.embedding import *
 from utils.enviroment import *
 from utils.pineconedb import *
-
-def web_to_vectordb():
+import sys
+def web_to_vectordb(url_list):
     try:
         loader = WebBaseLoader(
-            web_paths=["https://en.wikipedia.org/wiki/History_of_India"],
+            web_paths=url_list,
             bs_kwargs=dict(parse_only=SoupStrainer("p"))  # Target paragraph tags for main content
         )
         doc = loader.load()
