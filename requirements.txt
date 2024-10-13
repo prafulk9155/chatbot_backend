@@ -6,4 +6,10 @@ requests
 tf-keras
 requests
 beautifulsoup4
-
+langchain 
+langchain-community 
+langchainhub 
+langchain-chroma
+beautifulsoup4
+langchain_google_genai
+pinecone
