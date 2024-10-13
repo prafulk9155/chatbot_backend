@@ -1,7 +1,21 @@
 from bs4 import SoupStrainer 
 from langchain_community.document_loaders import WebBaseLoader
-# Adjust to target paragraph tags (common in Wikipedia for main content)
-loader = WebBaseLoader(
-    web_paths=["https://en.wikipedia.org/wiki/History_of_India"],
-    bs_kwargs=dict(parse_only=SoupStrainer("p"))  # Target paragraph tags for main content
-)
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_pinecone import PineconeVectorStore
+from utils.embedding import *
+from utils.enviroment import *
+from utils.pineconedb import *
+
+def web_to_vectordb():
+    try:
+        loader = WebBaseLoader(
+            web_paths=["https://en.wikipedia.org/wiki/History_of_India"],
+            bs_kwargs=dict(parse_only=SoupStrainer("p"))  # Target paragraph tags for main content
+        )
+        doc = loader.load()
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        splits = text_splitter.split_documents(doc)
+        PineconeVectorStore.from_documents(splits,embeddings,index_name = index_name)
+    except Exception as e:
+        print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
+        return {"error": True, 'message': f'Error: {str(e)}'}

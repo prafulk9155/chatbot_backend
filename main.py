@@ -2,12 +2,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import requests
 from bs4 import BeautifulSoup
-from transformers import pipeline
 
 app = FastAPI()
-
-# Initialize the question-answering pipeline with a model
-qa_pipeline = pipeline("question-answering")
 
 class URLRequest(BaseModel):
     url: str
