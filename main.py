@@ -57,4 +57,4 @@ async def query_scraped_data(request: QueryRequest):
     return {"answer": answer['answer']}
 
 # To run the application, use:
-# uvicorn app:app --reload
+# uvicorn main:app --reload
