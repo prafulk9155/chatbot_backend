@@ -6,7 +6,8 @@ from utils.embedding import *
 from utils.enviroment import *
 from utils.pineconedb import *
 import sys
-
+import warnings
+warnings.filterwarnings("ignore")
 def web_to_vectordb(url_list):
     try:
         loader = WebBaseLoader(
