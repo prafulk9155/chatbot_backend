@@ -2,38 +2,27 @@ import asyncio
 from pyppeteer import launch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import os
+from bs4 import BeautifulSoup
 
 app = FastAPI()
 
-class URLRequest(BaseModel):
-    url: str
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+    profile_url: str
 
-async def set_linkedin_cookies(page):
-    # Add your cookies (from the browser's dev tools) here
-    cookies = [
-        {
-            "name": "li_at",
-            "value": "AQEDAVOUOWsAv-XsAAABkmKb00kAAAGShqhXSVYABhInaI58G-FyjXIELWsRy1r1S2OV1Jz_LT8q9H5lykD16MXXOwv7s1PkB57pYRDE9kHTOlmhEZDpcdgXFZMH0giuwlupg0dft8OSKFRhHKIwaqMh",  # Replace with your cookie value
-            "domain": ".linkedin.com",
-            "path": "/",
-            "httpOnly": True,
-            "secure": True
-        },
-        {
-            "name": "JSESSIONID",
-            "value": "ajax:1597530069556966703",  # Replace with your cookie value
-            "domain": ".linkedin.com",
-            "path": "/",
-            "httpOnly": True,
-            "secure": True
-        },
-        # Add other relevant cookies here if necessary
-    ]
-    
-    # Set cookies in the browser
-    await page.setCookie(*cookies)
+TEMP_HTML_FILE = "temp.html"
 
-async def scrape_linkedin_profile(linkedin_url: str):
+async def save_html_to_file(page, filename):
+    # Get the full HTML content of the page
+    html_content = await page.content()
+
+    # Save the HTML content to a temp.html file
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(html_content)
+
+async def login_and_scrape_linkedin(email: str, password: str, profile_url: str):
     try:
         # Launch headless Chrome with Pyppeteer
         browser = await launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
@@ -42,42 +31,77 @@ async def scrape_linkedin_profile(linkedin_url: str):
         # Set User-Agent to mimic real browser interaction
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
 
-        # Set the cookies for LinkedIn from your logged-in session
-        await set_linkedin_cookies(page)
+        # Go to LinkedIn login page
+        await page.goto('https://www.linkedin.com/login')
+        await page.waitForSelector('input[name="session_key"]')  # Wait for email input
 
-        # Go directly to the LinkedIn profile URL
-        await page.goto(linkedin_url)
-        await page.waitForSelector('h1', 'p','span')  # Wait for the page to load
+        # Input email and password
+        await page.type('input[name="session_key"]', 'prafulk7050@gmail.com', {'delay': 100})  # Type email
+        await page.type('input[name="session_password"]', 'Complex#123', {'delay': 100})  # Type password
 
-        # Scrape all the visible text content from the page
-        page_content = await page.evaluate('''() => {
-            return document.body.innerText;
-        }''')
+        # Click the login button
+        await page.click('button[type="submit"]')
+        await page.waitForNavigation()  # Wait for the page to navigate after login
+
+        # Navigate to the specified LinkedIn profile URL
+        await page.goto(profile_url)
+        await page.waitForSelector('body')  # Ensure the profile page loads
+
+        # Save the HTML content of the profile page to a file
+        await save_html_to_file(page, TEMP_HTML_FILE)
 
         # Close the browser
         await browser.close()
 
-        # Return the scraped page content for analysis
+        # Return a message indicating success
         return {
-            "page_content": page_content
+            "message": f"HTML content saved to {TEMP_HTML_FILE} for the profile: {profile_url}"
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error scraping LinkedIn profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error logging in and scraping LinkedIn profile: {str(e)}")
 
 @app.post("/scrape/")
-async def scrape_profile(request: URLRequest):
-    profile_url = request.url
+async def scrape_profile(request: LoginRequest):
+    # Scrape the LinkedIn profile data after logging in
+    result = await login_and_scrape_linkedin(request.email, request.password, request.profile_url)
 
-    # Validate the URL
-    if "linkedin.com" not in profile_url:
-        raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid LinkedIn profile URL.")
+    # Return the result
+    return result
 
-    # Scrape the LinkedIn profile data
-    scraped_data = await scrape_linkedin_profile(profile_url)
+@app.get("/html/")
+async def get_html_file():
+    # Check if the temp.html file exists
+    if not os.path.exists(TEMP_HTML_FILE):
+        raise HTTPException(status_code=404, detail="HTML file not found. Please scrape a profile first.")
 
-    # Return the scraped data
-    return {"scraped_data": scraped_data}
+    # Read and return the HTML content from temp.html
+    with open(TEMP_HTML_FILE, "r", encoding="utf-8") as file:
+        html_content = file.read()
+
+    return {"html_content": html_content}
+
+@app.get("/scrape-details/")
+async def scrape_details():
+    # Check if the temp.html file exists
+    if not os.path.exists(TEMP_HTML_FILE):
+        raise HTTPException(status_code=404, detail="HTML file not found. Please scrape a profile first.")
+
+    # Read the HTML content
+    with open(TEMP_HTML_FILE, "r", encoding="utf-8") as file:
+        html_content = file.read()
+
+    # Use BeautifulSoup to parse the HTML content
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Scrape profile name, headline, and any other public information
+    profile_name = soup.find('h1').get_text(strip=True) if soup.find('h1') else 'Not Found'
+    headline = soup.find('h2').get_text(strip=True) if soup.find('h2') else 'Not Found'
+
+    return {
+        "profile_name": profile_name,
+        "headline": headline,
+    }
 
 # To run the application, use:
 # uvicorn app:app --reload
