@@ -6,6 +6,7 @@ from utils.embedding import *
 from utils.enviroment import *
 from utils.pineconedb import *
 import sys
+
 def web_to_vectordb(url_list):
     try:
         loader = WebBaseLoader(
