@@ -2,11 +2,14 @@ import asyncio
 from pyppeteer import launch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import os
 
 app = FastAPI()
 
 class URLRequest(BaseModel):
     url: str
+
+TEMP_HTML_FILE = "temp.html"
 
 async def dismiss_popup(page):
     # Check if a popup appears and close it if it does
@@ -16,6 +19,14 @@ async def dismiss_popup(page):
     except:
         # If no popup appears, continue
         pass
+
+async def save_html_to_file(page, filename):
+    # Get the full HTML content of the page
+    html_content = await page.content()
+
+    # Save the HTML content to a temp.html file
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(html_content)
 
 async def scrape_linkedin_profile(linkedin_url: str):
     try:
@@ -33,17 +44,15 @@ async def scrape_linkedin_profile(linkedin_url: str):
         # Dismiss any popups if they appear
         await dismiss_popup(page)
 
-        # Scrape all the visible text content from the page
-        page_content = await page.evaluate('''() => {
-            return document.body.innerText;
-        }''')
+        # Save the HTML content of the page to a file
+        await save_html_to_file(page, TEMP_HTML_FILE)
 
         # Close the browser
         await browser.close()
 
-        # Return the scraped page content for analysis
+        # Return a message indicating success
         return {
-            "page_content": page_content
+            "message": f"HTML content saved to {TEMP_HTML_FILE}"
         }
 
     except Exception as e:
@@ -57,11 +66,23 @@ async def scrape_profile(request: URLRequest):
     if "linkedin.com" not in profile_url:
         raise HTTPException(status_code=400, detail="Invalid URL. Please provide a valid LinkedIn profile URL.")
 
-    # Scrape the LinkedIn profile data
-    scraped_data = await scrape_linkedin_profile(profile_url)
+    # Scrape the LinkedIn profile data and save HTML to temp.html
+    result = await scrape_linkedin_profile(profile_url)
 
-    # Return the scraped data
-    return {"scraped_data": scraped_data}
+    # Return the result
+    return result
+
+@app.get("/html/")
+async def get_html_file():
+    # Check if the temp.html file exists
+    if not os.path.exists(TEMP_HTML_FILE):
+        raise HTTPException(status_code=404, detail="HTML file not found. Please scrape a profile first.")
+
+    # Read and return the HTML content from temp.html
+    with open(TEMP_HTML_FILE, "r", encoding="utf-8") as file:
+        html_content = file.read()
+
+    return {"html_content": html_content}
 
 # To run the application, use:
 # uvicorn app:app --reload
