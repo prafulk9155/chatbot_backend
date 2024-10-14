@@ -8,7 +8,7 @@ router = APIRouter()
 
 @router.get("/")
 def read_root():
-    return {"Status": "Scraper api working"}
+    return {"Status": "Upload api working"}
 
 
 @router.post("/processDoc", tags=['web'])
