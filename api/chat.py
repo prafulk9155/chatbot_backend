@@ -52,22 +52,12 @@ class ConversationalRAGChatbot:
         """Create and return the retriever."""
         try:
             retriever = self.vector_store.as_retriever()
-            # Log the type of the retriever
             logging.info(f"Retriever type: {type(retriever)}")  # Confirm it's a retriever
-
-            # # Log a dummy query to test the retriever
-            # dummy_question = "What is a car?"
-            # response = retriever.get_relevant_documents(dummy_question)  # Use get_relevant_documents
-            # logging.info(f"Dummy query response: {response}")  # Check response
-
             logging.info("Retriever created successfully")
             return retriever
         except Exception as e:
             logging.error(f"Failed to create retriever: {e}")
             raise
-
-
-
 
     def initialize_model(self):
         """Initialize the ChatGoogleGenerativeAI model."""
@@ -124,17 +114,15 @@ class ConversationalRAGChatbot:
         """Load chat history from a JSON file."""
         if os.path.exists(self.history_file):
             try:
-                # Check if the file is empty
                 if os.stat(self.history_file).st_size == 0:
                     logging.info("Chat history file is empty, returning an empty dictionary")
                     return {}
-                
-                # If the file is not empty, load the content
+
                 with open(self.history_file, "r") as f:
-                    chat_history = json.load(f)
+                    chat_history_data = json.load(f)
                     logging.info("Chat history loaded from file")
-                    return chat_history
-            
+                    return self._convert_to_chat_message_history(chat_history_data)
+
             except json.JSONDecodeError:
                 logging.error("Failed to decode chat history, file may be corrupted or improperly formatted.")
                 return {}
@@ -142,19 +130,31 @@ class ConversationalRAGChatbot:
         logging.info("No chat history file found, starting with an empty history")
         return {}
 
+    def _convert_to_chat_message_history(self, data):
+        """
+        Convert a dictionary of serialized chat histories back into ChatMessageHistory objects.
+        """
+        history = {}
+        for session_id, messages in data.items():
+            chat_history = ChatMessageHistory()
+            for message in messages:
+                if message["type"] == "human":
+                    chat_history.add_message(HumanMessage(content=message["content"]))
+                elif message["type"] == "ai":
+                    chat_history.add_message(AIMessage(content=message["content"]))
+            history[session_id] = chat_history
+        return history
+
     def save_chat_history(self):
         """Save chat history to a JSON file, handling potential serialization issues."""
         try:
-            # Convert the chat history (self.store) to a serializable format
             serializable_store = self._make_serializable(self.store)
 
-            # Write the serializable history to the file
             with open(self.history_file, "w") as f:
                 json.dump(serializable_store, f, indent=4)
                 logging.info("Chat history saved to file")
         except (TypeError, json.JSONDecodeError) as e:
             logging.error(f"Failed to save chat history: {e}")
-            # Optionally, you could raise the error or simply log it depending on what you want to do.
             raise
 
     def _make_serializable(self, data):
@@ -163,19 +163,27 @@ class ConversationalRAGChatbot:
         Convert objects like `ChatMessageHistory` to basic serializable types (e.g., lists of dictionaries).
         """
         if isinstance(data, ChatMessageHistory):
-            # Convert ChatMessageHistory to a list of dicts (e.g., messages)
-            return [message.to_dict() for message in data.messages]
+            return [self._message_to_dict(message) for message in data.messages]
 
         if isinstance(data, dict):
-            # If it's a dict, recursively process each key-value pair
             return {key: self._make_serializable(value) for key, value in data.items()}
 
         if isinstance(data, list):
-            # If it's a list, recursively process each element
             return [self._make_serializable(item) for item in data]
 
-        # For any other data types (primitives like str, int, etc.), return as is
         return data
+
+    def _message_to_dict(self, message):
+        """
+        Convert a message (HumanMessage or AIMessage) to a serializable dictionary.
+        """
+        if isinstance(message, HumanMessage):
+            return {"type": "human", "content": message.content}
+        elif isinstance(message, AIMessage):
+            return {"type": "ai", "content": message.content}
+        else:
+            logging.warning(f"Unexpected message type: {type(message)}")
+            return {"type": "unknown", "content": str(message)}
 
     def get_session_history(self, session_id: str) -> BaseChatMessageHistory:
         """Get or create chat history for a session."""
@@ -208,7 +216,6 @@ class ConversationalRAGChatbot:
             logging.info(f"Response from LLM: {response['answer']}")
 
             # Ensure to correctly access the response content
-            # Check if response is a dictionary and contains 'answer'
             if isinstance(response, dict) and 'answer' in response:
                 answer_content = response['answer']
             else:
@@ -216,10 +223,10 @@ class ConversationalRAGChatbot:
                 answer_content = "Sorry, an error occurred while processing your request."
             logging.info(f"Response generated: {answer_content}")
 
-            # self.save_chat_history()  # Save history after response
+            # Save chat history after each response
+            self.save_chat_history()
             return answer_content
 
         except Exception as e:
             logging.error(f"Error during chat: {e}")
             return "Sorry, an error occurred while processing your request."
-        

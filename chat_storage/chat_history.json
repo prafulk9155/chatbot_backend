@@ -1,0 +1,20 @@
+{
+    "ragchatbot": [
+        {
+            "type": "human",
+            "content": "what is a car?"
+        },
+        {
+            "type": "ai",
+            "content": "A car, also known as an automobile, is a motor vehicle with wheels that primarily runs on roads. It typically seats one to eight people, has four wheels, and is used mainly to transport people rather than cargo.  Cars are considered an essential part of the developed world, with an estimated one billion in use globally. \n"
+        },
+        {
+            "type": "human",
+            "content": "when it got invented?"
+        },
+        {
+            "type": "ai",
+            "content": "The invention of the modern car, a practical vehicle intended for everyday use, is attributed to Carl Benz in 1886 when he patented his Benz Patent-Motorwagen. However, earlier attempts and prototypes of automobiles powered by steam and internal combustion engines existed before Benz's invention. \n"
+        }
+    ]
+}
