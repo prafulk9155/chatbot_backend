@@ -4,6 +4,7 @@ import warnings
 from api.scraper import *
 import json 
 warnings.filterwarnings("ignore")
+
 router = APIRouter()
 
 @router.get("/")
