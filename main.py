@@ -32,6 +32,10 @@ class QueryRequest(BaseModel):
 # In-memory storage for scraped data
 scraped_data_storage = {}
 
+@app.get("/")
+async def root():
+    return {"message": "Chatbot api working ..."}
+
 @app.post("/scrape/")
 async def scrape_website(request: URLRequest):
     try:
