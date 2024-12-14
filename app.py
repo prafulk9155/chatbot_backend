@@ -7,6 +7,11 @@ app = FastAPI()
 
 class URLRequest(BaseModel):
     url: str
+    
+
+@app.get("/")
+async def root():
+    return {"message": "Chatbot api working ..."}
 
 @app.post("/scrape/")
 async def scrape_website(request: URLRequest):

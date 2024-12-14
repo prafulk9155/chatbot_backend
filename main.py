@@ -4,7 +4,21 @@ import requests
 from bs4 import BeautifulSoup
 from transformers import pipeline
 
+from fastapi.middleware.cors import CORSMiddleware
+# CORS Configuration
+origins = ["http://localhost:3000", "http://127.0.0.1:3000","*"]
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+
 
 # Initialize the question-answering pipeline with a model
 qa_pipeline = pipeline("question-answering")
@@ -34,14 +48,14 @@ async def scrape_website(request: URLRequest):
             scraped_data_storage[request.url] = scraped_text
 
             # Return the scraped text
-            return {"scraped_text": scraped_text}
+            return {"scraped_text": scraped_text, "error":False,"message": "Scraping completed successfully."}
         else:
             raise HTTPException(status_code=response.status_code, detail="Failed to retrieve data from the provided URL.")
 
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/query/")
+@app.post("/query")
 async def query_scraped_data(request: QueryRequest):
     # Check if there's scraped data available
     if not scraped_data_storage:
